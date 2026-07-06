@@ -3333,6 +3333,16 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
       bodyNode.style.paddingTop = '';
     }
 
+    // Clean up all edit-mode attributes from the clone's elements
+    clone.querySelectorAll('[data-adm-id]').forEach(el => {
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('data-editable');
+      el.removeAttribute('spellcheck');
+      if (!el.getAttribute('data-adm-id').startsWith('lnk-')) {
+        el.onclick = null;
+      }
+    });
+
     // Reset admin elements to hidden state (they may have been open when user clicked export)
     const admBar = clone.querySelector('#adm-bar');
     if (admBar) admBar.classList.remove('adm-bar-show');

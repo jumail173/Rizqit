@@ -50,7 +50,8 @@
   .wrap{max-width:var(--max);margin:0 auto;padding:0 32px;}
   @media(max-width:640px){.wrap{padding:0 20px;}}
   ::selection{background:var(--emerald);color:#fff;}
-  :focus-visible{outline:2px solid var(--emerald);outline-offset:3px;}
+  * { -webkit-tap-highlight-color: transparent; caret-color: transparent; }
+  input, textarea, [contenteditable="true"] { caret-color: auto; }
   .btn{
     display:inline-flex;align-items:center;gap:8px;
     padding:14px 26px;border-radius:100px;
@@ -499,6 +500,7 @@
   @media(max-width:900px){.footer-top{grid-template-columns:1fr 1fr;}}
   @media(max-width:560px){.footer-top{grid-template-columns:1fr;}}
   footer h5{color:#fff;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:16px;}
+  footer h4{color:#fff;font-family:var(--font-headings);font-weight:600;margin:0 0 16px;letter-spacing:-0.01em;}
   footer .flogo{font-family:var(--font-headings);font-weight:700;font-size:calc(1.3rem * var(--font-size-headings-multiplier));color:#fff;margin-bottom:14px;}
   footer p{font-size:calc(0.88rem * var(--font-size-body-multiplier));color:#B7B19E;margin:0 0 16px;}
   footer a{display:block;font-size:calc(0.88rem * var(--font-size-body-multiplier));color:#D9D4C4;margin-bottom:10px;transition:color calc(.2s * var(--anim-duration-multiplier)) ease;}
@@ -791,7 +793,6 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
         <ul class="dropdown">
           <li><a href="#services" data-adm-id="lnk-4">Website Design &amp; Redesign</a></li>
           <li><a href="#process" data-adm-id="lnk-5">Website Development</a></li>
-          <li><a href="#addons" data-adm-id="lnk-6">SEO Foundation</a></li>
           <li><a href="#addons" data-adm-id="lnk-7">Branding &amp; Identity</a></li>
           <li><a href="#addons" data-adm-id="lnk-8">Digital Marketing</a></li>
         </ul>
@@ -1554,7 +1555,7 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
 </script>
 
 <script>
-  /* ---- WhatsApp Popup Toggle — auto-show every 3s ---- */
+  /* ---- WhatsApp Popup Toggle — auto-show/hide cycle (10s hidden, 3s visible) ---- */
   (function() {
     const floatBtn  = document.getElementById('waFloatBtn');
     const popup     = document.getElementById('waPopup');
@@ -1572,40 +1573,43 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
     }
     refreshTime();
 
-    var popupTimer = null;
+    let openTimeout = null;
+    let closeTimeout = null;
+
+    function clearTimeouts() {
+      clearTimeout(openTimeout);
+      clearTimeout(closeTimeout);
+    }
+
+    function scheduleOpen() {
+      clearTimeouts();
+      openTimeout = setTimeout(openPopup, 10000);
+    }
+
+    function scheduleClose() {
+      clearTimeouts();
+      closeTimeout = setTimeout(closePopup, 3000);
+    }
 
     function openPopup() {
       refreshTime();
       popup.classList.add('wa-open');
       floatBtn.setAttribute('aria-expanded', 'true');
-      // Hide badge when user sees the popup
       if (badge) badge.style.display = 'none';
-      // Stop the auto-show timer while open
-      clearInterval(popupTimer);
+      scheduleClose();
     }
 
+    // Close and schedule to reopen
     function closePopup() {
       popup.classList.remove('wa-open');
       floatBtn.setAttribute('aria-expanded', 'false');
-      // Restart auto-show every 3 seconds after closing
-      startAutoShow();
-    }
-
-    function startAutoShow() {
-      clearInterval(popupTimer);
-      popupTimer = setInterval(function() {
-        if (!popup.classList.contains('wa-open')) {
-          // Re-show badge
-          if (badge) {
-            badge.style.display = 'flex';
-            // Re-trigger animation
-            badge.style.animation = 'none';
-            void badge.offsetWidth;
-            badge.style.animation = 'badge-pop .4s cubic-bezier(.34,1.56,.64,1)';
-          }
-          openPopup();
-        }
-      }, 3000);
+      if (badge) {
+        badge.style.display = 'flex';
+        badge.style.animation = 'none';
+        void badge.offsetWidth;
+        badge.style.animation = 'badge-pop .4s cubic-bezier(.34,1.56,.64,1)';
+      }
+      scheduleOpen();
     }
 
     // Toggle on button click
@@ -1637,10 +1641,8 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
       }
     });
 
-    // First auto-open after 3 seconds
-    setTimeout(function() {
-      openPopup();
-    }, 3000);
+    // First auto-open after 10 seconds
+    scheduleOpen();
 
   })();
 </script>
@@ -3332,6 +3334,16 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
       bodyNode.classList.remove('adm-active', 'adm-edit-mode');
       bodyNode.style.paddingTop = '';
     }
+
+    // Clean up all edit-mode attributes from the clone's elements
+    clone.querySelectorAll('[data-adm-id]').forEach(el => {
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('data-editable');
+      el.removeAttribute('spellcheck');
+      if (!el.getAttribute('data-adm-id').startsWith('lnk-')) {
+        el.onclick = null;
+      }
+    });
 
     // Reset admin elements to hidden state (they may have been open when user clicked export)
     const admBar = clone.querySelector('#adm-bar');

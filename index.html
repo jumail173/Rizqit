@@ -2373,6 +2373,19 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
         <option value="Ctrl+Alt+E">Ctrl + Alt + E</option>
       </select>
     </div>
+
+    <div style="border-top:1px solid #1e3028;padding-top:14px;margin-top:6px;">
+      <div class="adm-label" style="margin-bottom:8px;">☁️ Firebase Live Sync</div>
+      <div class="adm-field">
+        <div class="adm-label">Firebase Write Token (set in Firestore rules)</div>
+        <input type="password" class="adm-input" id="adm-firebase-token" placeholder="Enter your write token">
+      </div>
+      <div class="adm-field">
+        <div class="adm-label">Sync Status</div>
+        <span id="adm-firebase-status" style="color:#7a8a80;font-size:0.8rem;">⏸ Not configured — enter a token to enable live sync</span>
+      </div>
+      <button class="adm-apply-btn" id="adm-firebase-save-token" style="margin-top:4px;">Save Token &amp; Sync Now</button>
+    </div>
     
     <button class="adm-apply-btn amber" id="adm-settings-apply">Apply Settings</button>
     
@@ -2430,11 +2443,71 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
 <!-- EDIT MODE BANNER -->
 <div class="adm-edit-banner" style="display: none;">✏️ Direct Edit Mode ON — Click text to change inline · Click images/links to edit properties</div>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDoKvd0gbxF3sXwuN94JUVuv1sDaZDWKG0",
+  authDomain: "rizqit-2673e.firebaseapp.com",
+  projectId: "rizqit-2673e",
+  storageBucket: "rizqit-2673e.firebasestorage.app",
+  messagingSenderId: "138819685919",
+  appId: "1:138819685919:web:b70084cf9e5aa8a8c9cf2a",
+  measurementId: "G-4MN6M7QRMV"
+};
+try { firebase.initializeApp(FIREBASE_CONFIG); } catch(e) {}
+const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
+</script>
+
 <script>
 (function(){
   const STORAGE_KEY = 'rizqit_site_content_data';
   const PASSWORD_KEY = 'rizqit_admin_password';
   const SHORTCUT_KEY = 'rizqit_admin_shortcut';
+  const FIRESTORE_COLLECTION = 'site_content';
+  const FIRESTORE_DOC = 'data';
+
+  function getFirestore() {
+    try { return firebase.firestore(); } catch(e) { return null; }
+  }
+
+  function getFirebaseToken() {
+    return localStorage.getItem(FIRESTORE_WRITE_TOKEN_KEY) || '';
+  }
+
+  async function syncToFirebase(data) {
+    const token = getFirebaseToken();
+    if (!token) return;
+    try {
+      const db = getFirestore();
+      if (!db) return;
+      await db.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC).set({
+        ...data,
+        _writeToken: token,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch(e) {
+      console.warn('Firebase sync failed:', e);
+    }
+  }
+
+  async function loadFromFirebase() {
+    const db = getFirestore();
+    if (!db) return null;
+    try {
+      const doc = await db.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC).get();
+      if (doc.exists) {
+        const data = doc.data();
+        delete data._writeToken;
+        delete data.updatedAt;
+        return data;
+      }
+    } catch(e) {
+      console.warn('Firebase load failed:', e);
+    }
+    return null;
+  }
 
   let isLoggedIn = false;
   let editMode = false;
@@ -2632,6 +2705,7 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
     if (name === 'settings') {
       $('adm-set-pwd').value = '';
       $('adm-set-shortcut').value = getShortcutConfig();
+      initFirebaseSettings();
     }
   }
 
@@ -3367,6 +3441,47 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
     }
   };
 
+  /* Firebase token save */
+  $('adm-firebase-save-token').onclick = async () => {
+    const token = $('adm-firebase-token').value.trim();
+    localStorage.setItem(FIRESTORE_WRITE_TOKEN_KEY, token);
+    const status = $('adm-firebase-status');
+    if (!token) {
+      status.textContent = '⏸ Not configured — enter a token to enable live sync';
+      status.style.color = '#7a8a80';
+      showToast('Firebase token cleared');
+      return;
+    }
+    status.textContent = '⏳ Syncing current content to Firebase...';
+    status.style.color = '#E0A63A';
+    try {
+      // Trigger a full save to push current data to Firebase
+      const data = gatherSiteContent();
+      if (data) await syncToFirebase(data);
+      status.textContent = '✅ Live sync active — changes now visible to all visitors';
+      status.style.color = '#0E6B4F';
+      showToast('Firebase sync enabled! Changes now live for everyone.');
+    } catch(e) {
+      status.textContent = '❌ Sync failed — check token and try again';
+      status.style.color = '#e05454';
+      showToast('Firebase sync failed: ' + e.message, 'warn');
+    }
+  };
+
+  /* Populate Firebase token input when settings panel opens */
+  function initFirebaseSettings() {
+    const token = getFirebaseToken();
+    $('adm-firebase-token').value = token;
+    const status = $('adm-firebase-status');
+    if (token) {
+      status.textContent = '✅ Live sync active — changes visible to all visitors';
+      status.style.color = '#0E6B4F';
+    } else {
+      status.textContent = '⏸ Not configured — enter a token above to enable live sync';
+      status.style.color = '#7a8a80';
+    }
+  }
+
   /* =========== STORAGE AND PERSISTENCE ENGINE =========== */
   let _saveDebounceTimer = null;
   function saveSiteContent() {
@@ -3374,21 +3489,37 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
     _saveDebounceTimer = setTimeout(() => {
       _saveDebounceTimer = null;
       try {
-        const data = {
-          texts: {},
-          images: {},
-          links: {},
-          videos: {},
-          theme: {},
-          visibility: {},
-          animSettings: {
-            fps: window._admAnimFPS || 12,
-            frames: window._admAnimFrames || 110,
-            folder: window._admAnimFolder || 'mac-jpg',
-            prefix: window._admAnimPrefix || 'ezgif-frame-'
-          }
-        };
+  function gatherSiteContent() {
+    try {
+      const data = {
+        texts: {},
+        images: {},
+        links: {},
+        videos: {},
+        theme: {},
+        visibility: {},
+        animSettings: {
+          fps: window._admAnimFPS || 12,
+          frames: window._admAnimFrames || 110,
+          folder: window._admAnimFolder || 'mac-jpg',
+          prefix: window._admAnimPrefix || 'ezgif-frame-'
+        }
+      };
 
+      // Gather texts
+      document.querySelectorAll('[data-adm-id^="txt-"]').forEach(el => {
+        data.texts[el.getAttribute('data-adm-id')] = el.textContent;
+      });
+      
+      // Gather images
+      document.querySelectorAll('img[data-adm-id]').forEach(img => {
+        data.images[img.getAttribute('data-adm-id')] = {
+          src: img.getAttribute('src'),
+          alt: img.alt || ''
+        };
+      });
+
+<<<<<<< HEAD
         // Gather texts (use textContent to prevent nested HTML duplication)
         document.querySelectorAll('[data-adm-id^="txt-"]').forEach(el => {
           data.texts[el.getAttribute('data-adm-id')] = el.textContent;
@@ -3399,74 +3530,106 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
           data.images[img.getAttribute('data-adm-id')] = {
             src: img.getAttribute('src'),
             alt: img.alt || ''
-          };
-        });
+=======
+      // Gather links
+      document.querySelectorAll('[data-adm-id^="lnk-"]').forEach(lnk => {
+        data.links[lnk.getAttribute('data-adm-id')] = {
+          text: lnk.innerHTML,
+          href: lnk.getAttribute('href') || '',
+          target: lnk.getAttribute('target') || ''
+        };
+      });
 
-        // Gather links
-        document.querySelectorAll('[data-adm-id^="lnk-"]').forEach(lnk => {
-          data.links[lnk.getAttribute('data-adm-id')] = {
-            text: lnk.innerHTML,
-            href: lnk.getAttribute('href') || '',
-            target: lnk.getAttribute('target') || ''
-          };
-        });
+      // Gather videos
+      document.querySelectorAll('video[data-adm-id]').forEach(vid => {
+        data.videos[vid.getAttribute('data-adm-id')] = {
+          src: vid.getAttribute('src') || ''
+        };
+      });
 
+      // Gather ledger tags
+      data.ledger = {};
+      ledgerItems.forEach(item => {
+        const card = getLedgerCard(item.vidId);
+        if (!card) return;
+        const tagsEl = card.querySelector('.p-tags');
+        if (tagsEl) {
+          data.ledger[item.id] = {
+            tags: Array.from(tagsEl.querySelectorAll('.p-tag-pill')).map(s => s.textContent.trim()).join(', ')
+>>>>>>> b01609f (feat: add Firebase live sync with write token auth)
+          };
+        }
+      });
+
+      // Gather styles
+      const rootStyle = document.documentElement.style;
+      colorMap.forEach(c => {
+        data.theme[c.prop] = rootStyle.getPropertyValue(c.prop) || defaultColors[c.prop];
+      });
+      data.theme['--emerald-deep'] = rootStyle.getPropertyValue('--emerald-deep') || defaultColors['--emerald-deep'];
+      
+      const themeVars = [
+        '--font-headings', '--font-body',
+        '--font-size-headings-multiplier', '--font-size-body-multiplier',
+        '--anim-duration-multiplier'
+      ];
+      themeVars.forEach(v => {
+        data.theme[v] = rootStyle.getPropertyValue(v) || '1';
+      });
+
+<<<<<<< HEAD
         // Gather videos (all videos with data-adm-id, not just vid-* prefix)
         document.querySelectorAll('video[data-adm-id]').forEach(vid => {
           data.videos[vid.getAttribute('data-adm-id')] = {
             src: vid.getAttribute('src') || ''
           };
         });
+=======
+      // Gather visibility
+      sectionMap.forEach(sec => {
+        const el = document.querySelector(sec.sel);
+        if(el) {
+          data.visibility[sec.sel] = el.style.display !== 'none';
+        }
+      });
+>>>>>>> b01609f (feat: add Firebase live sync with write token auth)
 
-        // Gather ledger tags
-        data.ledger = {};
-        ledgerItems.forEach(item => {
-          const card = getLedgerCard(item.vidId);
-          if (!card) return;
-          const tagsEl = card.querySelector('.p-tags');
-          if (tagsEl) {
-            data.ledger[item.id] = {
-              tags: Array.from(tagsEl.querySelectorAll('.p-tag-pill')).map(s => s.textContent.trim()).join(', ')
-            };
-          }
-        });
+      return data;
+    } catch(e) {
+      console.warn('Gather content failed:', e);
+      return null;
+    }
+  }
 
-        // Gather styles
-        const rootStyle = document.documentElement.style;
-        colorMap.forEach(c => {
-          data.theme[c.prop] = rootStyle.getPropertyValue(c.prop) || defaultColors[c.prop];
-        });
-        data.theme['--emerald-deep'] = rootStyle.getPropertyValue('--emerald-deep') || defaultColors['--emerald-deep'];
-        
-        const themeVars = [
-          '--font-headings', '--font-body',
-          '--font-size-headings-multiplier', '--font-size-body-multiplier',
-          '--anim-duration-multiplier'
-        ];
-        themeVars.forEach(v => {
-          data.theme[v] = rootStyle.getPropertyValue(v) || '1';
-        });
-
-        // Gather visibility
-        sectionMap.forEach(sec => {
-          const el = document.querySelector(sec.sel);
-          if(el) {
-            data.visibility[sec.sel] = el.style.display !== 'none';
-          }
-        });
-
+  function saveSiteContent() {
+    if (_saveDebounceTimer) return;
+    _saveDebounceTimer = setTimeout(() => {
+      _saveDebounceTimer = null;
+      const data = gatherSiteContent();
+      if (!data) return;
+      try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch(e) {
         console.warn('LocalStorage save failed:', e);
       }
+      syncToFirebase(data);
     }, 300);
   }
 
-  function restoreSiteContent() {
+  async function restoreSiteContent() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const data = JSON.parse(raw);
+      let data = null;
+      // Try Firebase first
+      const fbData = await loadFromFirebase();
+      if (fbData) {
+        data = fbData;
+        // Cache to localStorage as backup
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) data = JSON.parse(raw);
+      }
+      if (!data) return;
 
       if (data.texts) {
         Object.entries(data.texts).forEach(([id, html]) => {
@@ -3695,8 +3858,9 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
 
   /* =========== INITIALIZATION =========== */
   initAdminIDs();
-  restoreSiteContent();
-  updateWhatsAppLinks();
+  restoreSiteContent().then(() => {
+    updateWhatsAppLinks();
+  });
 })();
 </script>
 

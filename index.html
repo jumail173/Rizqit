@@ -3605,15 +3605,38 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
   async function restoreSiteContent() {
     try {
       let data = null;
+      let localData = null;
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) localData = JSON.parse(raw);
+      
       // Try Firebase first
       const fbData = await loadFromFirebase();
       if (fbData) {
         data = fbData;
-        // Cache to localStorage as backup
+        // Merge local images/videos into Firebase data (Firebase strips base64)
+        if (localData) {
+          if (localData.images) {
+            if (!data.images) data.images = {};
+            Object.keys(localData.images).forEach(k => {
+              // Keep local version if Firebase has empty src (base64 stripped)
+              if (localData.images[k].src && (!data.images[k] || !data.images[k].src)) {
+                data.images[k] = localData.images[k];
+              }
+            });
+          }
+          if (localData.videos) {
+            if (!data.videos) data.videos = {};
+            Object.keys(localData.videos).forEach(k => {
+              if (localData.videos[k].src && (!data.videos[k] || !data.videos[k].src)) {
+                data.videos[k] = localData.videos[k];
+              }
+            });
+          }
+        }
+        // Cache merged data to localStorage
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
-      } else {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) data = JSON.parse(raw);
+      } else if (localData) {
+        data = localData;
       }
       if (!data) return;
 

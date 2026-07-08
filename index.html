@@ -290,7 +290,7 @@
     background:#c8c8c8;
   }
   .hero-art canvas{
-    display:block;width:100%;height:100%;
+    display:block;width:100%;height:100%;object-fit:cover;
     border-radius:inherit;
   }
   @media(prefers-reduced-motion:reduce){.hero-art .card-float{animation:none;} .nav-phone .ring{animation:none;}}
@@ -1152,7 +1152,7 @@
         <a href="#contact" class="btn btn-outline" data-adm-id="lnk-14">Talk to us →</a>
       </div>
       <div style="width:380px; height:380px; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); background:#c8c8c8; flex-shrink:0;" data-reveal="" class="in">
-        <canvas id="brandingCanvas" style="display:block; width:100%; height:100%; object-fit:cover;" width="1366" height="768"></canvas>
+        <canvas id="brandingCanvas" style="display:block; width:100%; height:100%;" width="1366" height="768"></canvas>
       </div>
     </div>
   </div>
@@ -1229,6 +1229,14 @@
     let lastTime = 0;
     let animationFrameId = null;
 
+    function fitCanvas() {
+      const parent = canvas.parentElement;
+      if (parent) {
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+      }
+    }
+
     function preloadFrames() {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -1242,8 +1250,7 @@
         img.onload = () => {
           loadedCount++;
           if (loadedCount === 1) {
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
+            fitCanvas();
             drawFrame(0);
           }
           if (loadedCount === FRAMES) {
@@ -1254,6 +1261,7 @@
       }
     }
     preloadFrames();
+    window.addEventListener('resize', fitCanvas);
 
     function drawFrame(index) {
       if (index < 0 || index >= frames.length) return;
@@ -1549,14 +1557,6 @@
     let animationFrameId = null;
 
     // Preload all frames
-    function fitCanvas() {
-      const parent = canvas.parentElement;
-      if (parent) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
-      }
-    }
-
     function preloadFrames() {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -1571,7 +1571,8 @@
         img.onload = () => {
           loadedCount++;
           if (loadedCount === 1) {
-            fitCanvas();
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
             drawFrame(0);
           }
           if (loadedCount === count) {
@@ -1582,7 +1583,6 @@
       }
     }
     preloadFrames();
-    window.addEventListener('resize', fitCanvas);
     window._admReloadCanvas = preloadFrames;
 
     function drawFrame(index) {

@@ -2482,8 +2482,24 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
     try {
       const db = getFirestore();
       if (!db) return;
+      // Strip base64 data URLs (too large for Firestore)
+      const clean = JSON.parse(JSON.stringify(data));
+      if (clean.images) {
+        Object.keys(clean.images).forEach(k => {
+          if (clean.images[k].src && clean.images[k].src.startsWith('data:')) {
+            clean.images[k].src = '';
+          }
+        });
+      }
+      if (clean.videos) {
+        Object.keys(clean.videos).forEach(k => {
+          if (clean.videos[k].src && clean.videos[k].src.startsWith('data:')) {
+            clean.videos[k].src = '';
+          }
+        });
+      }
       await db.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC).set({
-        ...data,
+        ...clean,
         _writeToken: token,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });

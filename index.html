@@ -3484,11 +3484,7 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
 
   /* =========== STORAGE AND PERSISTENCE ENGINE =========== */
   let _saveDebounceTimer = null;
-  function saveSiteContent() {
-    if (_saveDebounceTimer) return;
-    _saveDebounceTimer = setTimeout(() => {
-      _saveDebounceTimer = null;
-      try {
+
   function gatherSiteContent() {
     try {
       const data = {
@@ -3519,18 +3515,6 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         };
       });
 
-<<<<<<< HEAD
-        // Gather texts (use textContent to prevent nested HTML duplication)
-        document.querySelectorAll('[data-adm-id^="txt-"]').forEach(el => {
-          data.texts[el.getAttribute('data-adm-id')] = el.textContent;
-        });
-        
-        // Gather images (all images with data-adm-id, not just img-* prefix)
-        document.querySelectorAll('img[data-adm-id]').forEach(img => {
-          data.images[img.getAttribute('data-adm-id')] = {
-            src: img.getAttribute('src'),
-            alt: img.alt || ''
-=======
       // Gather links
       document.querySelectorAll('[data-adm-id^="lnk-"]').forEach(lnk => {
         data.links[lnk.getAttribute('data-adm-id')] = {
@@ -3556,7 +3540,6 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         if (tagsEl) {
           data.ledger[item.id] = {
             tags: Array.from(tagsEl.querySelectorAll('.p-tag-pill')).map(s => s.textContent.trim()).join(', ')
->>>>>>> b01609f (feat: add Firebase live sync with write token auth)
           };
         }
       });
@@ -3577,14 +3560,6 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         data.theme[v] = rootStyle.getPropertyValue(v) || '1';
       });
 
-<<<<<<< HEAD
-        // Gather videos (all videos with data-adm-id, not just vid-* prefix)
-        document.querySelectorAll('video[data-adm-id]').forEach(vid => {
-          data.videos[vid.getAttribute('data-adm-id')] = {
-            src: vid.getAttribute('src') || ''
-          };
-        });
-=======
       // Gather visibility
       sectionMap.forEach(sec => {
         const el = document.querySelector(sec.sel);
@@ -3592,7 +3567,6 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
           data.visibility[sec.sel] = el.style.display !== 'none';
         }
       });
->>>>>>> b01609f (feat: add Firebase live sync with write token auth)
 
       return data;
     } catch(e) {

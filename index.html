@@ -2482,24 +2482,8 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
     try {
       const db = getFirestore();
       if (!db) return;
-      // Strip base64 data URLs (too large for Firestore)
-      const clean = JSON.parse(JSON.stringify(data));
-      if (clean.images) {
-        Object.keys(clean.images).forEach(k => {
-          if (clean.images[k].src && clean.images[k].src.startsWith('data:')) {
-            clean.images[k].src = '';
-          }
-        });
-      }
-      if (clean.videos) {
-        Object.keys(clean.videos).forEach(k => {
-          if (clean.videos[k].src && clean.videos[k].src.startsWith('data:')) {
-            clean.videos[k].src = '';
-          }
-        });
-      }
       await db.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC).set({
-        ...clean,
+        ...data,
         _writeToken: token,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -3523,10 +3507,11 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         data.texts[el.getAttribute('data-adm-id')] = el.textContent;
       });
       
-      // Gather images
+      // Gather images (exclude base64 data URLs — too large)
       document.querySelectorAll('img[data-adm-id]').forEach(img => {
+        const src = img.getAttribute('src');
         data.images[img.getAttribute('data-adm-id')] = {
-          src: img.getAttribute('src'),
+          src: (src && !src.startsWith('data:')) ? src : '',
           alt: img.alt || ''
         };
       });
@@ -3540,10 +3525,11 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         };
       });
 
-      // Gather videos
+      // Gather videos (exclude base64 data URLs)
       document.querySelectorAll('video[data-adm-id]').forEach(vid => {
+        const src = vid.getAttribute('src');
         data.videos[vid.getAttribute('data-adm-id')] = {
-          src: vid.getAttribute('src') || ''
+          src: (src && !src.startsWith('data:')) ? src : ''
         };
       });
 

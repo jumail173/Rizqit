@@ -1113,26 +1113,27 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    const videoObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const video = entry.target;
+        if (entry.isIntersecting) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      });
+    }, { threshold: 0.3 });
+
     document.querySelectorAll('.p-item').forEach(item => {
       const video = item.querySelector('video');
       if (video) {
-        let isPlaying = false;
-        item.addEventListener('mouseenter', () => {
-          isPlaying = true;
-          video.play().catch(e => {});
+        video.load();
+        videoObserver.observe(video);
+
+        item.addEventListener('click', (e) => {
+          if (video.paused) { video.play().catch(() => {}); }
+          else { video.pause(); }
         });
-        item.addEventListener('mouseleave', () => {
-          isPlaying = false;
-          video.pause();
-        });
-        item.addEventListener('click', () => {
-          if (isPlaying) { video.pause(); isPlaying = false; }
-          else { video.play().catch(e => {}); isPlaying = true; }
-        });
-        item.addEventListener('touchstart', (e) => {
-          if (video.paused) { video.play().catch(e => {}); isPlaying = true; }
-          else { video.pause(); isPlaying = false; }
-        }, { passive: true });
       }
     });
   });

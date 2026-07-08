@@ -290,7 +290,7 @@
     background:#c8c8c8;
   }
   .hero-art canvas{
-    display:block;width:100%;height:100%;object-fit:cover;
+    display:block;width:100%;height:100%;
     border-radius:inherit;
   }
   @media(prefers-reduced-motion:reduce){.hero-art .card-float{animation:none;} .nav-phone .ring{animation:none;}}
@@ -867,7 +867,7 @@
       </div>
     </div>
     <div class="hero-art in" data-reveal="">
-      <canvas id="heroCanvas" width="1920" height="1080"></canvas>
+      <canvas id="heroCanvas"></canvas>
     </div>
   </div>
 </section>
@@ -1549,6 +1549,14 @@
     let animationFrameId = null;
 
     // Preload all frames
+    function fitCanvas() {
+      const parent = canvas.parentElement;
+      if (parent) {
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+      }
+    }
+
     function preloadFrames() {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -1563,8 +1571,7 @@
         img.onload = () => {
           loadedCount++;
           if (loadedCount === 1) {
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
+            fitCanvas();
             drawFrame(0);
           }
           if (loadedCount === count) {
@@ -1575,6 +1582,7 @@
       }
     }
     preloadFrames();
+    window.addEventListener('resize', fitCanvas);
     window._admReloadCanvas = preloadFrames;
 
     function drawFrame(index) {

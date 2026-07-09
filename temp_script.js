@@ -273,12 +273,12 @@
 
     function scheduleOpen() {
       clearTimeouts();
-      openTimeout = setTimeout(openPopup, 10000);
+      openTimeout = setTimeout(openPopup, 15000);
     }
 
     function scheduleClose() {
       clearTimeouts();
-      closeTimeout = setTimeout(closePopup, 3000);
+      closeTimeout = setTimeout(closePopup, 2000);
     }
 
     function openPopup() {
@@ -336,6 +336,35 @@
 
   })();
 
+
+  /* ---- Newsletter Form ---- */
+  document.getElementById('newsletterForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const email = document.getElementById('newsletterEmail').value.trim();
+    if (!email) return;
+    const btn = this.querySelector('button');
+    btn.textContent = 'Sending...';
+    fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_key: 'f811ad51-4cf2-43f2-95bc-f753a5277157',
+        subject: 'New newsletter subscriber from RIZQ.IT',
+        from_name: 'RIZQ.IT Newsletter',
+        email: email,
+        recipient: 'walterwhiteisalive007@gmail.com',
+        message: 'New subscriber: ' + email
+      })
+    }).then(r => r.json()).then(d => {
+      if (d.success) {
+        btn.textContent = '✓ Sent!';
+        document.getElementById('newsletterEmail').value = '';
+        setTimeout(() => btn.textContent = '→', 3000);
+      } else {
+        btn.textContent = '✕ Error';
+      }
+    }).catch(() => { btn.textContent = '✕ Error'; });
+  });
 
 (function(){
   const STORAGE_KEY = 'rizqit_site_content_data';

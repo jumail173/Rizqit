@@ -516,9 +516,8 @@
     flex:1;padding:11px 14px;border-radius:8px;border:1px solid #3A4139;background:#1E2420;color:#fff;font-size:0.85rem;
   }
   .newsletter-form button{
-    background:var(--amber);border:none;color:var(--ink);padding:0 16px;border-radius:8px;font-weight:600;cursor:pointer;transition:filter .2s;
+    background:var(--amber);border:none;color:var(--ink);padding:0 16px;border-radius:8px;font-weight:600;cursor:pointer;
   }
-  .newsletter-form button:hover{background:#c9922f;transform:translateY(-2px);}
   .footer-bottom{
     margin-top:48px;padding-top:24px;border-top:1px solid #2B322C;
     display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:calc(0.8rem * var(--font-size-body-multiplier));color:#8A8474;
@@ -1417,8 +1416,8 @@
         <p style="margin-bottom:6px;" data-adm-id="txt-137">Newsletter</p>
         <p style="margin-bottom:18px;" data-adm-id="txt-138">© 2026 RIZQ.IT — All rights reserved.</p>
         <h5 data-adm-id="txt-139">Privacy Policy · Terms of Service</h5>
-        <form class="newsletter-form" id="newsletterForm">
-          <input type="email" id="newsletterEmail" placeholder="Your email" aria-label="Email" required>
+        <form class="newsletter-form" onsubmit="return false;">
+          <input type="email" placeholder="Your email" aria-label="Email">
           <button type="submit">→</button>
         </form>
       </div>
@@ -2404,7 +2403,8 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
     <h4>🖼️ Update Image / Video Source</h4>
     <div class="adm-field">
       <div class="adm-label">Upload Local File</div>
-      <button class="adm-apply-btn amber" id="adm-media-file-btn" style="width:100%;">📂 Browse file &amp; Upload (Converts to Base64)</button>
+      <button class="adm-apply-btn amber" id="adm-media-file-btn" style="width:100%;">☁️ Upload to Cloud (Live URL)</button>
+      <div id="adm-upload-progress" style="display:none;margin-top:6px;font-size:0.78rem;color:#4ec9b0;">⏳ Uploading...</div>
     </div>
     <div style="text-align:center;color:#7a8a80;font-size:0.75rem;margin:2px 0;">— OR USE URL —</div>
     <div class="adm-field">
@@ -2447,6 +2447,7 @@ body.adm-edit-mode .adm-edit-banner{display:block;}
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script>
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDoKvd0gbxF3sXwuN94JUVuv1sDaZDWKG0",
@@ -2483,8 +2484,20 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
     try {
       const db = getFirestore();
       if (!db) return;
+      // Strip base64 data from images/videos (too large for Firestore)
+      const clean = JSON.parse(JSON.stringify(data));
+      if (clean.images) {
+        Object.keys(clean.images).forEach(k => {
+          if (clean.images[k].src && clean.images[k].src.startsWith('data:')) clean.images[k].src = '';
+        });
+      }
+      if (clean.videos) {
+        Object.keys(clean.videos).forEach(k => {
+          if (clean.videos[k].src && clean.videos[k].src.startsWith('data:')) clean.videos[k].src = '';
+        });
+      }
       await db.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC).set({
-        ...data,
+        ...clean,
         _writeToken: token,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -2995,16 +3008,38 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
   $('adm-media-file-btn').onclick = () => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-    fileInput.accept = currentMediaTarget.tagName.toLowerCase() === 'video' ? 'video/*' : 'image/*';
-    fileInput.onchange = e => {
+    fileInput.accept = currentMediaTarget && currentMediaTarget.tagName.toLowerCase() === 'video' ? 'video/*' : 'image/*';
+    fileInput.onchange = async e => {
       const file = e.target.files[0];
-      if(!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        $('adm-img-new-src').value = ev.target.result;
-        showToast('File loaded. Click Apply to save.');
-      };
-      reader.readAsDataURL(file);
+      if (!file) return;
+
+      // Try Firebase Storage upload first (gives a permanent live URL)
+      const progressEl = $('adm-upload-progress');
+      try {
+        const storage = firebase.storage();
+        const ext = file.name.split('.').pop();
+        const path = `rizqit-media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const ref = storage.ref(path);
+        if (progressEl) progressEl.style.display = 'block';
+        showToast('☁️ Uploading to cloud...');
+        const snapshot = await ref.put(file);
+        const downloadURL = await snapshot.ref.getDownloadURL();
+        $('adm-img-new-src').value = downloadURL;
+        if (currentMediaTarget) currentMediaTarget.src = downloadURL;
+        saveSiteContent();
+        if (progressEl) progressEl.style.display = 'none';
+        showToast('✅ Uploaded! Changes are live everywhere.');
+      } catch (storageErr) {
+        // Fallback: use base64 if Storage not available/configured
+        if (progressEl) progressEl.style.display = 'none';
+        console.warn('Firebase Storage upload failed, falling back to base64:', storageErr);
+        const reader = new FileReader();
+        reader.onload = ev => {
+          $('adm-img-new-src').value = ev.target.result;
+          showToast('⚠️ Saved locally only (Storage unavailable). Click Apply.');
+        };
+        reader.readAsDataURL(file);
+      }
     };
     fileInput.click();
   };
@@ -3508,11 +3543,10 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         data.texts[el.getAttribute('data-adm-id')] = el.textContent;
       });
       
-      // Gather images (exclude base64 data URLs — too large)
+      // Gather images
       document.querySelectorAll('img[data-adm-id]').forEach(img => {
-        const src = img.getAttribute('src');
         data.images[img.getAttribute('data-adm-id')] = {
-          src: (src && !src.startsWith('data:')) ? src : '',
+          src: img.getAttribute('src') || '',
           alt: img.alt || ''
         };
       });
@@ -3526,11 +3560,10 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
         };
       });
 
-      // Gather videos (exclude base64 data URLs)
+      // Gather videos
       document.querySelectorAll('video[data-adm-id]').forEach(vid => {
-        const src = vid.getAttribute('src');
         data.videos[vid.getAttribute('data-adm-id')] = {
-          src: (src && !src.startsWith('data:')) ? src : ''
+          src: vid.getAttribute('src') || ''
         };
       });
 
@@ -3596,15 +3629,38 @@ const FIRESTORE_WRITE_TOKEN_KEY = 'rizqit_firebase_token';
   async function restoreSiteContent() {
     try {
       let data = null;
+      let localData = null;
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) localData = JSON.parse(raw);
+      
       // Try Firebase first
       const fbData = await loadFromFirebase();
       if (fbData) {
         data = fbData;
-        // Cache to localStorage as backup
+        // Merge local images/videos into Firebase data (Firebase strips base64)
+        if (localData) {
+          if (localData.images) {
+            if (!data.images) data.images = {};
+            Object.keys(localData.images).forEach(k => {
+              // Keep local version if Firebase has empty src (base64 stripped)
+              if (localData.images[k].src && (!data.images[k] || !data.images[k].src)) {
+                data.images[k] = localData.images[k];
+              }
+            });
+          }
+          if (localData.videos) {
+            if (!data.videos) data.videos = {};
+            Object.keys(localData.videos).forEach(k => {
+              if (localData.videos[k].src && (!data.videos[k] || !data.videos[k].src)) {
+                data.videos[k] = localData.videos[k];
+              }
+            });
+          }
+        }
+        // Cache merged data to localStorage
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
-      } else {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) data = JSON.parse(raw);
+      } else if (localData) {
+        data = localData;
       }
       if (!data) return;
 
